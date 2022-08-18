@@ -4,16 +4,20 @@
   set_fact:
     __postgresql_version_dotless: "{{ postgresql_version | replace('.', '') }}"
     __postgresql_command_sep: "{{ postgresql_version is version('10', '>=') | ternary('-', '') }}"
+    __postgresql_server_package_name: >-
+      {{"postgresql{{ __postgresql_version_dotless }}-server" if
+      ansible_distribution_major_version is version(7, '<=') else "postgresql-server"}}
 
 # Using the rpm URL format of the yum module causes Ansible to download the rpm
 # every time to check whether it's installed, so, don't do that.
-- name: Check pgdg repository package (RedHat)
+- name: Check pgdg repository package (RedHat 7)
   yum:
     name: "pgdg-redhat-repo"
   register: __postgresql_repo_pkg_installed_result
   ignore_errors: true
+  when: ansible_distribution_major_version is version (7, '==')
 
-- name: Install pgdg repository package (RedHat)
+- name: Install pgdg repository package (RedHat 7)
   yum:
     name: >-
       https://download.postgresql.org/pub/repos/yum/reporpms/{{ postgresql_pgdg_shortfamilies[ansible_distribution]
@@ -23,7 +27,12 @@
   until: __postgresql_yum_result is succeeded
   retries: 5
   delay: 5
-  when: __postgresql_repo_pkg_installed_result is failed
+  when: __postgresql_repo_pkg_installed_result is failed and ansible_distribution_major_version is version(7, '==')
+
+- name: Enable Postgres module (RedHat >= 8)
+  command: "dnf module enable postgresql:{{__postgresql_version_dotless}}"
+  become: yes
+  when: ansible_distribution_major_version is version(8, '>=')
 
 # - name: Collect installed repos
 #   yum:
@@ -44,7 +53,7 @@
 
 - name: Install PostgreSQL (RedHat)
   yum:
-    name: postgresql{{ __postgresql_version_dotless }}-server
+    name: "{{__postgresql_server_package_name}}"
 
 - name: Check for pgdata directory
   stat:
@@ -60,10 +69,17 @@
     ansible_distribution_major_version is version(7, '<')
       and (pgdata_stat.stat.isdir is not defined or not pgdata_stat.stat.isdir)
 
-- name: Initialize database (RedHat >= 7)
+- name: Initialize database (RedHat 7)
   command: >-
     /usr/pgsql-{{ postgresql_version }}/bin/postgresql{{ __postgresql_command_sep }}{{
       __postgresql_version_dotless }}-setup initdb
   when: >-
-    ansible_distribution_major_version is version(7, '>=')
+    ansible_distribution_major_version is version(7, '==')
+      and (pgdata_stat.stat.isdir is not defined or not pgdata_stat.stat.isdir)
+
+- name: Initialize database (RedHat >= 8)
+  command: >-
+    postgresql-setup initdb
+  when: >-
+    ansible_distribution_major_version is version(8, '>=')
       and (pgdata_stat.stat.isdir is not defined or not pgdata_stat.stat.isdir)

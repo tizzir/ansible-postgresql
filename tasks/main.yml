@@ -25,6 +25,11 @@
     postgresql_conf_dir: "{{ postgresql_conf_dir_default }}"
   when: postgresql_conf_dir is not defined
 
+- name: Set service name fact
+  set_fact:
+    postgresql_service_name: "{{ postgresql_service_name_default }}"
+  when: postgresql_service_name is not defined
+
 # Needs postgresql_pgdata set
 - include_tasks: redhat.yml
   when: ansible_os_family == "RedHat"
