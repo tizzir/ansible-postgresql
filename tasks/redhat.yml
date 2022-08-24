@@ -4,8 +4,10 @@
   set_fact:
     __postgresql_version_dotless: "{{ postgresql_version | replace('.', '') }}"
     __postgresql_command_sep: "{{ postgresql_version is version('10', '>=') | ternary('-', '') }}"
+- name: Set PostgreSQL package name fact
+  set_fact:
     __postgresql_server_package_name: >-
-      {{"postgresql{{ __postgresql_version_dotless }}-server" if
+      {{"postgresql" + __postgresql_version_dotless + "-server" if
       ansible_distribution_major_version is version(7, '<=') else "postgresql-server"}}
 
 # Using the rpm URL format of the yum module causes Ansible to download the rpm
